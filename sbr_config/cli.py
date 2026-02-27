@@ -30,11 +30,18 @@ def build_parser() -> argparse.ArgumentParser:
 Examples:
   sbr-config --validate              Check current SBR state
   sbr-config --configure             Apply changes interactively
-  sbr-config --configure --force     Apply without confirmation
+  sbr-config --configure --force     Apply without pre-apply confirmation
   sbr-config --configure --persist   Also write boot-persistent config
   sbr-config --configure --dry-run   Show changes without applying
   sbr-config --rollback              Restore previous state
   sbr-config --check-prereqs         Verify all prerequisites are met
+  sbr-config --configure --confirm-timeout 60   Wait 60s for post-apply check
+  sbr-config --configure --confirm-timeout 0    Disable post-apply safety timer
+
+Safety:
+  After applying changes, the tool waits for you to confirm that you still
+  have connectivity (default: 30 seconds).  If you lose access and cannot
+  respond, all changes are automatically rolled back.
 """,
     )
 
@@ -74,6 +81,16 @@ Examples:
         "--dry-run",
         action="store_true",
         help="Show proposed changes without applying them",
+    )
+    parser.add_argument(
+        "--confirm-timeout",
+        type=int,
+        default=30,
+        metavar="SECS",
+        help=(
+            "Seconds to wait for post-apply confirmation before auto-rollback "
+            "(default: 30). Set to 0 to disable the safety timer."
+        ),
     )
     parser.add_argument(
         "--exclude",
@@ -268,6 +285,36 @@ def _do_configure(args: argparse.Namespace, out: Output) -> int:
         applied = apply_changes(changes)
         out.nl()
         out.info(f"Successfully applied {applied} change(s).")
+
+        # Dead man's switch: wait for user to confirm they still
+        # have connectivity before finalising.  If no response within
+        # the timeout, auto-rollback to the backup we just saved.
+        # Ctrl+C during the countdown also triggers rollback.
+        confirm_timeout = getattr(args, "confirm_timeout", 30)
+        if confirm_timeout > 0:
+            try:
+                confirmed = out.prompt_timed_confirm(confirm_timeout)
+            except KeyboardInterrupt:
+                confirmed = False
+                out.nl()
+                out.warning("Interrupted during confirmation.")
+
+            if not confirmed:
+                out.nl()
+                out.error(
+                    "No confirmation received -- "
+                    "rolling back all changes for safety."
+                )
+                try:
+                    rollback(backup_path=backup_path)
+                    out.info("Rollback complete. System restored to previous state.")
+                except Exception as e:
+                    out.error(f"Auto-rollback failed: {e}")
+                    out.error(f"Manual rollback: sbr-config --rollback --backup-file {backup_path}")
+                return 1
+
+            out.nl()
+            out.info("Confirmation received -- changes will be kept.")
 
         # Write persistent config if requested
         if args.persist:

@@ -1,6 +1,8 @@
 """Colored terminal output, formatting, tables, and interactive prompts."""
 
+import select
 import sys
+import time
 from typing import List, Optional
 
 from .models import PlannedChange, ValidationResult
@@ -183,6 +185,90 @@ class Output:
         if not answer:
             return default
         return answer in ("y", "yes")
+
+    def prompt_timed_confirm(self, timeout: int) -> bool:
+        """Post-apply dead man's switch confirmation.
+
+        Displays a prominent warning and waits for the user to type 'yes'
+        within ``timeout`` seconds.  If no confirmation is received the
+        caller should automatically roll back.
+
+        Args:
+            timeout: Seconds to wait.  Must be > 0.
+
+        Returns:
+            True if the user confirmed, False if timeout expired or input
+            was anything other than 'yes'.
+        """
+        box_w = 66
+        border = self._c(Colors.RED + Colors.BOLD, "#" * box_w)
+        pad = self._c(Colors.RED + Colors.BOLD, "#") + " " * (box_w - 2) + self._c(Colors.RED + Colors.BOLD, "#")
+
+        print()
+        print(border)
+        print(pad)
+        self._box_line("CONNECTIVITY CHECK", box_w, Colors.RED + Colors.BOLD)
+        print(pad)
+        self._box_line("Changes have been applied. Please verify that you", box_w, Colors.YELLOW)
+        self._box_line("still have connectivity to this system.", box_w, Colors.YELLOW)
+        print(pad)
+        self._box_line("Type 'yes' within %d seconds to KEEP the changes." % timeout, box_w, Colors.WHITE + Colors.BOLD)
+        self._box_line("If no response is received, all changes will be", box_w, Colors.WHITE)
+        self._box_line("AUTOMATICALLY ROLLED BACK for safety.", box_w, Colors.WHITE)
+        print(pad)
+        print(border)
+        print()
+
+        deadline = time.time() + timeout
+        confirmed = False
+
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+
+            # Show countdown
+            sys.stdout.write(
+                "\r" + self._c(Colors.YELLOW + Colors.BOLD,
+                               "  [%2ds] " % int(remaining + 0.5))
+                + "Type 'yes' to confirm: "
+            )
+            sys.stdout.flush()
+
+            try:
+                ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+            except (OSError, ValueError):
+                # stdin closed or not selectable
+                break
+
+            if ready:
+                try:
+                    answer = sys.stdin.readline().strip().lower()
+                except (EOFError, IOError):
+                    break
+                if answer == "yes":
+                    confirmed = True
+                    break
+                elif answer:
+                    # Wrong answer -- remind them
+                    sys.stdout.write(
+                        "  " + self._c(Colors.RED, "Please type exactly 'yes' to confirm.") + "\n"
+                    )
+
+        # Clear the countdown line
+        sys.stdout.write("\r" + " " * 60 + "\r")
+        sys.stdout.flush()
+
+        return confirmed
+
+    def _box_line(self, text, width, color_code):
+        """Print a centered line inside a bordered box."""
+        inner = width - 4  # account for "# " and " #"
+        padded = text.center(inner)
+        left = self._c(Colors.RED + Colors.BOLD, "# ")
+        right = self._c(Colors.RED + Colors.BOLD, " #")
+        middle = self._c(color_code, padded)
+        print(left + middle + right)
 
     def summary(self, passed: int, failed: int) -> None:
         """Print a validation summary line."""
