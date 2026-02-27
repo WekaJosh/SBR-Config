@@ -34,6 +34,7 @@ Examples:
   sbr-config --configure --persist   Also write boot-persistent config
   sbr-config --configure --dry-run   Show changes without applying
   sbr-config --rollback              Restore previous state
+  sbr-config --check-prereqs         Verify all prerequisites are met
 """,
     )
 
@@ -52,6 +53,11 @@ Examples:
         "--rollback",
         action="store_true",
         help="Restore previous configuration from backup",
+    )
+    mode.add_argument(
+        "--check-prereqs",
+        action="store_true",
+        help="Check that all required prerequisites are installed",
     )
 
     parser.add_argument(
@@ -131,6 +137,16 @@ def main(argv: List[str] = None) -> int:
     # Setup
     setup_logging(args.log_file, args.verbose)
     out = Output(color=not args.no_color, quiet=args.quiet)
+
+    # --check-prereqs is handled by the bash wrapper for the most
+    # comprehensive check (including Python itself).  If invoked via
+    # ``python -m sbr_config --check-prereqs`` we print a helpful message.
+    if getattr(args, "check_prereqs", False):
+        out.info(
+            "Prerequisite checks are performed by the bash wrapper script. "
+            "Run: ./sbr-config --check-prereqs"
+        )
+        return 0
 
     try:
         check_root()
