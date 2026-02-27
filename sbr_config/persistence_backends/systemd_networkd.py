@@ -91,15 +91,23 @@ class SystemdNetworkdBackend(PersistenceBackend):
             f"Destination={iface.subnet}",
             f"Table={table_number}",
             "",
-            "[Route]",
-            f"Gateway={iface.gateway}",
-            f"Table={table_number}",
-            "",
+        ]
+
+        # Only add default route if a gateway is known
+        if iface.gateway is not None:
+            lines.extend([
+                "[Route]",
+                f"Gateway={iface.gateway}",
+                f"Table={table_number}",
+                "",
+            ])
+
+        lines.extend([
             "[RoutingPolicyRule]",
             f"From={iface.ip_address}",
             f"Table={table_number}",
             f"Priority={priority}",
             "",
-        ]
+        ])
 
         return "\n".join(lines)

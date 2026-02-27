@@ -59,22 +59,7 @@ def validate(state: SystemState) -> List[ValidationResult]:
             ))
             continue
 
-        if iface.gateway is None:
-            results.append(ValidationResult(
-                interface_name=iface.name,
-                check_name="gateway_known",
-                is_correct=False,
-                current_value="unknown",
-                expected_value="A reachable gateway IP",
-                fix_description=(
-                    f"Gateway for {iface.name} could not be auto-detected. "
-                    f"SBR cannot be configured without knowing the gateway. "
-                    f"Check DHCP leases, static config, or specify manually."
-                ),
-            ))
-            continue
-
-        # Run all SBR checks for this interface
+        # Run SBR checks for this interface (with or without gateway)
         table_name = f"{TABLE_NAME_PREFIX}{iface.name}"
         results.extend(_validate_interface_sbr(iface, table_name, state))
 
@@ -145,26 +130,37 @@ def _validate_interface_sbr(
         ) if not has_subnet_route else "",
     ))
 
-    # Check 3: Default route in custom table
-    has_default_route = any(
-        r.destination == "default" and r.gateway == iface.gateway and r.device == iface.name
-        for r in table_routes
-    )
-    results.append(ValidationResult(
-        interface_name=iface.name,
-        check_name="default_route_in_table",
-        is_correct=has_default_route,
-        current_value=(
-            f"Default route via {iface.gateway} dev {iface.name} "
-            f"{'found' if has_default_route else 'missing'} in table {table_name}"
-        ),
-        expected_value=f"default via {iface.gateway} dev {iface.name} table {table_name}",
-        fix_description=(
-            f"Table '{table_name}' needs a default route via {iface.gateway} "
-            f"so traffic originating from {iface.ip_address} destined for remote "
-            f"networks exits through {iface.name}'s gateway."
-        ) if not has_default_route else "",
-    ))
+    # Check 3: Default route in custom table (only if gateway is known)
+    if iface.gateway is not None:
+        has_default_route = any(
+            r.destination == "default" and r.gateway == iface.gateway and r.device == iface.name
+            for r in table_routes
+        )
+        results.append(ValidationResult(
+            interface_name=iface.name,
+            check_name="default_route_in_table",
+            is_correct=has_default_route,
+            current_value=(
+                f"Default route via {iface.gateway} dev {iface.name} "
+                f"{'found' if has_default_route else 'missing'} in table {table_name}"
+            ),
+            expected_value=f"default via {iface.gateway} dev {iface.name} table {table_name}",
+            fix_description=(
+                f"Table '{table_name}' needs a default route via {iface.gateway} "
+                f"so traffic originating from {iface.ip_address} destined for remote "
+                f"networks exits through {iface.name}'s gateway."
+            ) if not has_default_route else "",
+        ))
+    else:
+        # No gateway -- no default route needed (non-routable / subnet-only)
+        results.append(ValidationResult(
+            interface_name=iface.name,
+            check_name="default_route_in_table",
+            is_correct=True,
+            current_value="No gateway -- default route not applicable",
+            expected_value="No default route (non-routable interface)",
+            fix_description="",
+        ))
 
     # Check 4: IP rule exists
     has_rule = any(

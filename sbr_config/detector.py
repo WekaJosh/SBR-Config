@@ -506,12 +506,16 @@ def _detect_gateway(iface: InterfaceInfo, use_json: bool) -> Optional[str]:
         logger.info("Gateway for %s from systemd-networkd: %s", iface.name, gw)
         return gw
 
-    gw = _gateway_heuristic(iface)
-    if gw:
-        logger.info("Gateway for %s from .1 heuristic: %s", iface.name, gw)
-        return gw
-
-    logger.warning("Could not detect gateway for %s", iface.name)
+    # No heuristic guessing -- if we can't find a gateway from a
+    # reliable source, leave it as None.  Non-routable interfaces
+    # (storage, cluster interconnects, etc.) legitimately have no
+    # gateway and SBR should still handle them (table + subnet route
+    # + rule, but no default route).
+    logger.info(
+        "No gateway found for %s -- will configure SBR without a "
+        "default route in its table (subnet-only routing)",
+        iface.name,
+    )
     return None
 
 
@@ -582,20 +586,6 @@ def _gateway_from_networkd(iface: InterfaceInfo) -> Optional[str]:
             m = re.search(r'Gateway\s*=\s*([\d.]+)', content)
             if m:
                 return m.group(1)
-    return None
-
-
-def _gateway_heuristic(iface: InterfaceInfo) -> Optional[str]:
-    """Try the common .1 gateway address in the interface's subnet."""
-    try:
-        network = ipaddress.IPv4Network(iface.subnet, strict=False)
-        # Try .1 in the subnet
-        candidate = str(network.network_address + 1)
-        # Verify it's in the network and not the interface's own IP
-        if candidate != iface.ip_address and ipaddress.IPv4Address(candidate) in network:
-            return candidate
-    except (ValueError, TypeError):
-        pass
     return None
 
 

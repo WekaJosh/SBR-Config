@@ -109,7 +109,7 @@ class Output:
         for iface in interfaces:
             if iface.is_loopback:
                 continue
-            gw = iface.gateway or "unknown"
+            gw = iface.gateway or "(none)"
             status_parts = []
             if iface.is_default_route_interface:
                 status_parts.append(self._c(Colors.GREEN, "DEFAULT ROUTE"))

@@ -93,20 +93,29 @@ class NetplanBackend(PersistenceBackend):
 
             priority = 100 + (tnum - 100) * 10
 
-            lines.extend([
+            route_lines = [
                 f"    {iface.name}:",
                 f"      routes:",
                 f"        - to: {iface.subnet}",
-                f"          via: {iface.gateway}",
                 f"          table: {tnum}",
-                f"        - to: default",
-                f"          via: {iface.gateway}",
-                f"          table: {tnum}",
+            ]
+
+            # Only add default route if a gateway is known
+            if iface.gateway is not None:
+                route_lines.extend([
+                    f"        - to: default",
+                    f"          via: {iface.gateway}",
+                    f"          table: {tnum}",
+                ])
+
+            route_lines.extend([
                 f"      routing-policy:",
                 f"        - from: {iface.ip_address}",
                 f"          table: {tnum}",
                 f"          priority: {priority}",
             ])
+
+            lines.extend(route_lines)
 
         lines.append("")
         return "\n".join(lines)

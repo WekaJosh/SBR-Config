@@ -80,8 +80,6 @@ def plan_changes(
     for iface in state.interfaces:
         if iface.is_loopback or iface.is_default_route_interface or not iface.is_up:
             continue
-        if iface.gateway is None:
-            continue
 
         iface_fails = failed_by_iface.get(iface.name, set())
         if not iface_fails:
@@ -139,16 +137,17 @@ def plan_changes(
                 reason=(
                     f"Table '{table_name}' needs a route to the local subnet "
                     f"{iface.subnet} via {iface.name}. This allows the custom "
-                    f"routing table to reach the gateway ({iface.gateway}) and "
-                    f"other hosts on the local network segment."
+                    f"routing table to reach "
+                    + (f"the gateway ({iface.gateway}) and " if iface.gateway else "")
+                    + "other hosts on the local network segment."
                 ),
                 command=route_cmd,
                 interface=iface.name,
                 rollback_command=del_cmd,
             ))
 
-        # Phase 3: Default route in custom table
-        if "default_route_in_table" in iface_fails:
+        # Phase 3: Default route in custom table (only if gateway exists)
+        if iface.gateway is not None and "default_route_in_table" in iface_fails:
             route_cmd = (
                 f"ip route add default via {iface.gateway} "
                 f"dev {iface.name} table {table_name}"
