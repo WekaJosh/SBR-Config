@@ -27,16 +27,25 @@ def build_parser() -> argparse.ArgumentParser:
         description="Configure source-based routing for multi-NIC Linux systems.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
+Short flags:
+  -V  --validate          -c  --configure        -r  --rollback
+  -p  --check-prereqs     -f  --force            -P  --persist
+  -n  --dry-run           -t  --confirm-timeout   -x  --exclude
+  -i  --include           -b  --backup-file       -l  --log-file
+  -C  --no-color          -v  --verbose           -q  --quiet
+
 Examples:
-  sbr-config --validate              Check current SBR state
-  sbr-config --configure             Apply changes interactively
-  sbr-config --configure --force     Apply without pre-apply confirmation
-  sbr-config --configure --persist   Also write boot-persistent config
-  sbr-config --configure --dry-run   Show changes without applying
-  sbr-config --rollback              Restore previous state
-  sbr-config --check-prereqs         Verify all prerequisites are met
-  sbr-config --configure --confirm-timeout 60   Wait 60s for post-apply check
-  sbr-config --configure --confirm-timeout 0    Disable post-apply safety timer
+  sbr-config -V                      Check current SBR state
+  sbr-config -c                      Apply changes interactively
+  sbr-config -c -f                   Apply without pre-apply confirmation
+  sbr-config -c -P                   Also write boot-persistent config
+  sbr-config -c -n                   Show changes without applying
+  sbr-config -r                      Restore previous state
+  sbr-config -p                      Verify all prerequisites are met
+  sbr-config -c -t 60               Wait 60s for post-apply check
+  sbr-config -c -t 0                Disable post-apply safety timer
+  sbr-config -c -x eth0             Exclude eth0 from SBR
+  sbr-config -c -i eth1 -i eth2     Only configure eth1 and eth2
 
 Safety:
   After applying changes, the tool waits for you to confirm that you still
@@ -47,43 +56,43 @@ Safety:
 
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
-        "--validate",
+        "-V", "--validate",
         action="store_true",
         help="Check current SBR configuration and report findings",
     )
     mode.add_argument(
-        "--configure",
+        "-c", "--configure",
         action="store_true",
         help="Compute and apply needed SBR changes",
     )
     mode.add_argument(
-        "--rollback",
+        "-r", "--rollback",
         action="store_true",
         help="Restore previous configuration from backup",
     )
     mode.add_argument(
-        "--check-prereqs",
+        "-p", "--check-prereqs",
         action="store_true",
         help="Check that all required prerequisites are installed",
     )
 
     parser.add_argument(
-        "--force",
+        "-f", "--force",
         action="store_true",
-        help="Skip interactive confirmation (use with --configure)",
+        help="Skip interactive confirmation (use with -c/--configure)",
     )
     parser.add_argument(
-        "--persist",
+        "-P", "--persist",
         action="store_true",
         help="Write persistent config that survives reboot",
     )
     parser.add_argument(
-        "--dry-run",
+        "-n", "--dry-run",
         action="store_true",
         help="Show proposed changes without applying them",
     )
     parser.add_argument(
-        "--confirm-timeout",
+        "-t", "--confirm-timeout",
         type=int,
         default=30,
         metavar="SECS",
@@ -93,32 +102,32 @@ Safety:
         ),
     )
     parser.add_argument(
-        "--exclude",
+        "-x", "--exclude",
         action="append",
         default=[],
         metavar="IFACE",
         help="Exclude interface from SBR (repeatable)",
     )
     parser.add_argument(
-        "--include",
+        "-i", "--include",
         action="append",
         default=[],
         metavar="IFACE",
         help="Only configure these interfaces (repeatable)",
     )
     parser.add_argument(
-        "--backup-file",
+        "-b", "--backup-file",
         metavar="PATH",
-        help="Specific backup file to restore from (with --rollback)",
+        help="Specific backup file to restore from (with -r/--rollback)",
     )
     parser.add_argument(
-        "--log-file",
+        "-l", "--log-file",
         default="/var/log/sbr-config.log",
         metavar="PATH",
         help="Log file path (default: /var/log/sbr-config.log)",
     )
     parser.add_argument(
-        "--no-color",
+        "-C", "--no-color",
         action="store_true",
         help="Disable colored output",
     )

@@ -19,12 +19,12 @@ warn() {
 
 # ---------------------------------------------------------------------------
 # Determine if this invocation needs root or is info-only
-# --help, -h, --version, and --check-prereqs can run without root/Linux
+# --help, -h, --version, and --check-prereqs/-p can run without root/Linux
 # ---------------------------------------------------------------------------
 NEEDS_ROOT=true
 for arg in "$@"; do
     case "$arg" in
-        --help|-h|--version|--check-prereqs)
+        --help|-h|--version|--check-prereqs|-p)
             NEEDS_ROOT=false
             break
             ;;
@@ -73,7 +73,7 @@ fi
 # Handle --check-prereqs directly in bash (comprehensive check)
 # ---------------------------------------------------------------------------
 for arg in "$@"; do
-    if [[ "$arg" == "--check-prereqs" ]]; then
+    if [[ "$arg" == "--check-prereqs" ]] || [[ "$arg" == "-p" ]]; then
         echo ""
         echo "sbr-config: Prerequisite Check"
         echo "=============================="
