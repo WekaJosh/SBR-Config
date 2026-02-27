@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# sbr-config: Linux Source-Based Routing Configuration Tool
+# This wrapper validates the environment and delegates to the Python core.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MIN_PYTHON_MAJOR=3
+MIN_PYTHON_MINOR=6
+
+error() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+# Check we are on Linux
+if [[ "$(uname -s)" != "Linux" ]]; then
+    error "sbr-config only runs on Linux (detected: $(uname -s))"
+fi
+
+# Check for Python 3.6+
+PYTHON=""
+for candidate in python3 python; do
+    if command -v "$candidate" &>/dev/null; then
+        major=$("$candidate" -c "import sys; print(sys.version_info.major)" 2>/dev/null) || continue
+        minor=$("$candidate" -c "import sys; print(sys.version_info.minor)" 2>/dev/null) || continue
+        if [[ "$major" -ge "$MIN_PYTHON_MAJOR" ]] && [[ "$minor" -ge "$MIN_PYTHON_MINOR" ]]; then
+            PYTHON="$candidate"
+            break
+        fi
+    fi
+done
+
+if [[ -z "$PYTHON" ]]; then
+    error "Python ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}+ is required but not found. Install python3 and try again."
+fi
+
+# Check for root
+if [[ $EUID -ne 0 ]]; then
+    error "sbr-config must be run as root (try: sudo $0 $*)"
+fi
+
+# Check iproute2 is available
+if ! command -v ip &>/dev/null; then
+    error "'ip' command not found. Install the iproute2 package."
+fi
+
+# Delegate to Python package
+# Try installed package first, then local directory
+if "$PYTHON" -c "import sbr_config" 2>/dev/null; then
+    exec "$PYTHON" -m sbr_config "$@"
+elif [[ -d "${SCRIPT_DIR}/sbr_config" ]]; then
+    export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}"
+    exec "$PYTHON" -m sbr_config "$@"
+else
+    error "sbr_config Python package not found. Ensure sbr_config/ is in the same directory as this script or install via pip."
+fi
