@@ -29,16 +29,16 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="""\
 Short flags:
   -V  --validate          -c  --configure        -r  --rollback
-  -p  --check-prereqs     -f  --force            -P  --persist
-  -n  --dry-run           -t  --confirm-timeout   -x  --exclude
-  -i  --include           -b  --backup-file       -l  --log-file
-  -C  --no-color          -v  --verbose           -q  --quiet
+  -p  --check-prereqs     -f  --force            -n  --dry-run
+  -t  --confirm-timeout   -x  --exclude          -i  --include
+  -b  --backup-file       -l  --log-file         -C  --no-color
+  -v  --verbose           -q  --quiet            --no-persist
 
 Examples:
   sbr-config -V                      Check current SBR state
-  sbr-config -c                      Apply changes interactively
+  sbr-config -c                      Apply changes + persist (default)
   sbr-config -c -f                   Apply without pre-apply confirmation
-  sbr-config -c -P                   Also write boot-persistent config
+  sbr-config -c --no-persist         Apply runtime only, skip persistence
   sbr-config -c -n                   Show changes without applying
   sbr-config -r                      Restore previous state
   sbr-config -p                      Verify all prerequisites are met
@@ -82,9 +82,9 @@ Safety:
         help="Skip interactive confirmation (use with -c/--configure)",
     )
     parser.add_argument(
-        "-P", "--persist",
+        "--no-persist",
         action="store_true",
-        help="Write persistent config that survives reboot",
+        help="Skip writing persistent config (persist is on by default)",
     )
     parser.add_argument(
         "-n", "--dry-run",
@@ -325,8 +325,8 @@ def _do_configure(args: argparse.Namespace, out: Output) -> int:
             out.nl()
             out.info("Confirmation received -- changes will be kept.")
 
-        # Write persistent config if requested
-        if args.persist:
+        # Write persistent config (default) unless --no-persist
+        if not args.no_persist:
             out.header("Writing Persistent Configuration")
             _write_persistence(state, changes, out)
 
