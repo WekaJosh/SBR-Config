@@ -38,8 +38,9 @@ def run_command(
         result = subprocess.run(
             cmd,
             shell=True,
-            capture_output=capture,
-            text=True,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.PIPE if capture else None,
+            universal_newlines=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -115,8 +116,9 @@ def command_exists(name: str) -> bool:
     """Check if a command is available in PATH."""
     result = subprocess.run(
         ["which", name],
-        capture_output=True,
-        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
     )
     return result.returncode == 0
 
@@ -127,8 +129,9 @@ def ip_json_supported() -> bool:
         result = subprocess.run(
             "ip -j link show lo",
             shell=True,
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
             timeout=5,
         )
         return result.returncode == 0 and result.stdout.strip().startswith("[")
