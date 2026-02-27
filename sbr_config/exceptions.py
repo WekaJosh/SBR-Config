@@ -11,14 +11,6 @@ class DetectionError(SbrConfigError):
     pass
 
 
-class GatewayNotFoundError(DetectionError):
-    """Could not determine gateway for an interface."""
-
-    def __init__(self, interface: str):
-        self.interface = interface
-        super().__init__(f"Cannot determine gateway for interface '{interface}'")
-
-
 class ValidationError(SbrConfigError):
     """Validation found issues that prevent configuration."""
     pass

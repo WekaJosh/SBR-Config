@@ -16,7 +16,7 @@ from .constants import (
     RT_TABLES_PATH,
     SYSTEMD_NETWORK_DIR,
 )
-from .exceptions import DetectionError, GatewayNotFoundError
+from .exceptions import DetectionError
 from .models import (
     InterfaceInfo,
     NetworkManagerType,
