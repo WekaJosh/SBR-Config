@@ -32,7 +32,7 @@ Short flags:
   -p  --check-prereqs     -f  --force            -n  --dry-run
   -t  --confirm-timeout   -x  --exclude          -i  --include
   -b  --backup-file       -l  --log-file         -C  --no-color
-  -v  --verbose           -q  --quiet            --no-persist
+  -v  --verbose           -q  --quiet            -P  --no-persist
 
 Examples:
   sbr-config -V                      Check current SBR state
@@ -82,7 +82,7 @@ Safety:
         help="Skip interactive confirmation (use with -c/--configure)",
     )
     parser.add_argument(
-        "--no-persist",
+        "-P", "--no-persist",
         action="store_true",
         help="Skip writing persistent config (persist is on by default)",
     )
