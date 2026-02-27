@@ -45,19 +45,21 @@ def write_persistence(
         files_written.append(sysctl_path)
 
     # Identify non-default interfaces with SBR changes
+    # (includes gatewayless / non-routable interfaces)
     sbr_interfaces = []
     for iface in state.interfaces:
         if iface.is_loopback or iface.is_default_route_interface:
             continue
-        if iface.is_up and iface.gateway:
-            # Check if there are changes for this interface
-            has_changes = any(
-                c.interface == iface.name
-                for c in changes
-                if c.change_type in (ChangeType.ADD_ROUTE, ChangeType.ADD_RULE)
-            )
-            if has_changes:
-                sbr_interfaces.append(iface)
+        if not iface.is_up:
+            continue
+        # Check if there are changes for this interface
+        has_changes = any(
+            c.interface == iface.name
+            for c in changes
+            if c.change_type in (ChangeType.ADD_ROUTE, ChangeType.ADD_RULE)
+        )
+        if has_changes:
+            sbr_interfaces.append(iface)
 
     if not sbr_interfaces:
         logger.info("No interface-level persistence needed")
