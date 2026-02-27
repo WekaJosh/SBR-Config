@@ -66,7 +66,14 @@ class NetworkManagerBackend(PersistenceBackend):
         tables: List[RoutingTable],
         changes: List[PlannedChange],
     ) -> str:
-        """Generate the bash dispatcher script content."""
+        """Generate the bash dispatcher script content.
+
+        Commands are derived from the desired interface state (not from
+        the delta of this run) so the script always contains the COMPLETE
+        set of commands needed after a reboot.
+        """
+        table_num = {t.name: t.number for t in tables}
+
         lines = [
             "#!/bin/bash",
             MANAGED_COMMENT,
@@ -79,40 +86,37 @@ class NetworkManagerBackend(PersistenceBackend):
             'case "$IFACE" in',
         ]
 
-        # Group changes by interface
-        iface_map = {}
         for iface in interfaces:
             table_name = f"{TABLE_NAME_PREFIX}{iface.name}"
-            iface_map[iface.name] = {
-                "iface": iface,
-                "table_name": table_name,
-                "up_commands": [],
-                "down_commands": [],
-            }
-
-        for change in changes:
-            if not change.interface or change.interface not in iface_map:
-                continue
-            entry = iface_map[change.interface]
-
-            # Skip sysctl and rt_table changes -- those are handled globally
-            if change.command.startswith("sysctl") or change.command.startswith("echo"):
+            tnum = table_num.get(table_name)
+            if tnum is None:
                 continue
 
-            entry["up_commands"].append(change.command)
-            if change.rollback_command:
-                entry["down_commands"].append(change.rollback_command)
+            # Derive the full command set from the desired state
+            up_commands = [
+                f"ip route replace {iface.subnet} dev {iface.name} "
+                f"src {iface.ip_address} table {table_name}",
+            ]
+            if iface.gateway is not None:
+                up_commands.append(
+                    f"ip route replace default via {iface.gateway} "
+                    f"dev {iface.name} table {table_name}"
+                )
+            up_commands.append(
+                f"ip rule add from {iface.ip_address} table {table_name} 2>/dev/null"
+            )
 
-        for iface_name, entry in iface_map.items():
-            if not entry["up_commands"]:
-                continue
+            down_commands = [
+                f"ip rule del from {iface.ip_address} table {table_name}",
+                f"ip route flush table {table_name}",
+            ]
 
-            lines.append(f"    {iface_name})")
+            lines.append(f"    {iface.name})")
             lines.append('        if [ "$ACTION" = "up" ]; then')
-            for cmd in entry["up_commands"]:
+            for cmd in up_commands:
                 lines.append(f"            {cmd}")
             lines.append('        elif [ "$ACTION" = "down" ]; then')
-            for cmd in reversed(entry["down_commands"]):
+            for cmd in down_commands:
                 lines.append(f"            {cmd} 2>/dev/null")
             lines.append("        fi")
             lines.append("        ;;")

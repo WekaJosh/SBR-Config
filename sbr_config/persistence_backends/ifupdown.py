@@ -32,25 +32,34 @@ class IfupdownBackend(PersistenceBackend):
         tables: List[RoutingTable],
         changes: List[PlannedChange],
     ) -> List[str]:
+        table_num = {t.name: t.number for t in tables}
         written = []
 
         for iface in interfaces:
             table_name = f"{TABLE_NAME_PREFIX}{iface.name}"
-
-            # Collect commands for this interface
-            up_cmds = []
-            down_cmds = []
-            for change in changes:
-                if change.interface != iface.name:
-                    continue
-                if change.command.startswith("sysctl") or change.command.startswith("echo"):
-                    continue
-                up_cmds.append(change.command)
-                if change.rollback_command:
-                    down_cmds.append(change.rollback_command)
-
-            if not up_cmds:
+            tnum = table_num.get(table_name)
+            if tnum is None:
                 continue
+
+            # Derive the full command set from the desired state (not
+            # just this run's delta) so persistence is always complete.
+            up_cmds = [
+                f"ip route replace {iface.subnet} dev {iface.name} "
+                f"src {iface.ip_address} table {table_name}",
+            ]
+            if iface.gateway is not None:
+                up_cmds.append(
+                    f"ip route replace default via {iface.gateway} "
+                    f"dev {iface.name} table {table_name}"
+                )
+            up_cmds.append(
+                f"ip rule add from {iface.ip_address} table {table_name} 2>/dev/null"
+            )
+
+            down_cmds = [
+                f"ip rule del from {iface.ip_address} table {table_name}",
+                f"ip route flush table {table_name}",
+            ]
 
             # Try to add to existing stanza in interfaces file
             if self._add_to_interfaces_file(iface.name, up_cmds, down_cmds):

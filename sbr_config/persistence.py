@@ -44,27 +44,6 @@ def write_persistence(
     if sysctl_path:
         files_written.append(sysctl_path)
 
-    # Identify non-default interfaces with SBR changes
-    # (includes gatewayless / non-routable interfaces)
-    sbr_interfaces = []
-    for iface in state.interfaces:
-        if iface.is_loopback or iface.is_default_route_interface:
-            continue
-        if not iface.is_up:
-            continue
-        # Check if there are changes for this interface
-        has_changes = any(
-            c.interface == iface.name
-            for c in changes
-            if c.change_type in (ChangeType.ADD_ROUTE, ChangeType.ADD_RULE)
-        )
-        if has_changes:
-            sbr_interfaces.append(iface)
-
-    if not sbr_interfaces:
-        logger.info("No interface-level persistence needed")
-        return files_written
-
     # Build table list (include both existing and newly added)
     tables = list(state.routing_tables)
     for change in changes:
@@ -74,6 +53,28 @@ def write_persistence(
             m = re.search(r"echo\s+'(\d+)\s+(\S+)'", change.command)
             if m:
                 tables.append(RoutingTable(number=int(m.group(1)), name=m.group(2)))
+
+    table_names = {t.name for t in tables}
+
+    # Identify ALL interfaces that should have SBR persistence.
+    # This includes interfaces configured in previous runs whose
+    # routing is already correct (i.e. no new changes), so that
+    # the persistence file is always a COMPLETE representation of
+    # the desired state -- not just the delta from this run.
+    sbr_interfaces = []
+    for iface in state.interfaces:
+        if iface.is_loopback or iface.is_default_route_interface:
+            continue
+        if not iface.is_up:
+            continue
+        # Include if the interface has (or is getting) an sbr_ table
+        expected_table = TABLE_NAME_PREFIX + iface.name
+        if expected_table in table_names:
+            sbr_interfaces.append(iface)
+
+    if not sbr_interfaces:
+        logger.info("No interface-level persistence needed")
+        return files_written
 
     # Select backend
     backend = _select_backend(state.network_manager)
