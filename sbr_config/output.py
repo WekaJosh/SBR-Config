@@ -222,21 +222,28 @@ class Output:
         deadline = time.time() + timeout
         confirmed = False
 
+        # Print the countdown line first, then the prompt line.  The countdown
+        # sits on the line ABOVE the prompt and is redrawn in place every
+        # second using ANSI cursor save/restore.  This way the user's input
+        # line is never touched, so typing "yes" works naturally without
+        # being overwritten each tick.
+        def _print_countdown_prompt(secs_left):
+            sys.stdout.write(
+                self._c(Colors.YELLOW + Colors.BOLD, "  [%2ds]" % int(secs_left + 0.5))
+                + " Time remaining\n"
+            )
+            sys.stdout.write("Type 'yes' to confirm: ")
+            sys.stdout.flush()
+
+        _print_countdown_prompt(timeout)
+
         while True:
             remaining = deadline - time.time()
             if remaining <= 0:
                 break
 
-            # Show countdown
-            sys.stdout.write(
-                "\r" + self._c(Colors.YELLOW + Colors.BOLD,
-                               "  [%2ds] " % int(remaining + 0.5))
-                + "Type 'yes' to confirm: "
-            )
-            sys.stdout.flush()
-
             try:
-                ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+                ready, _, _ = select.select([sys.stdin], [], [], min(1.0, remaining))
             except (OSError, ValueError):
                 # stdin closed or not selectable
                 break
@@ -250,13 +257,33 @@ class Output:
                     confirmed = True
                     break
                 elif answer:
-                    # Wrong answer -- remind them
+                    # Wrong answer -- remind them and reprint the block so
+                    # the countdown keeps ticking on its dedicated line.
                     sys.stdout.write(
                         "  " + self._c(Colors.RED, "Please type exactly 'yes' to confirm.") + "\n"
                     )
+                    _print_countdown_prompt(deadline - time.time())
+            else:
+                # Timer tick.  Redraw only the countdown line (above the
+                # prompt) by saving the cursor, moving up one line, clearing
+                # it, writing the new countdown, then restoring the cursor
+                # back to wherever the user was typing.
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    break
+                sys.stdout.write(
+                    "\033[s"                 # save cursor position
+                    + "\033[1A"              # move up one line
+                    + "\r\033[2K"            # col 0, clear entire line
+                    + self._c(Colors.YELLOW + Colors.BOLD,
+                              "  [%2ds]" % int(remaining + 0.5))
+                    + " Time remaining"
+                    + "\033[u"               # restore cursor position
+                )
+                sys.stdout.flush()
 
-        # Clear the countdown line
-        sys.stdout.write("\r" + " " * 60 + "\r")
+        # Move past the prompt line so subsequent output starts on a fresh line.
+        sys.stdout.write("\n")
         sys.stdout.flush()
 
         return confirmed
