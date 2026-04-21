@@ -222,20 +222,19 @@ class Output:
         deadline = time.time() + timeout
         confirmed = False
 
-        # Print the countdown line first, then the prompt line.  The countdown
-        # sits on the line ABOVE the prompt and is redrawn in place every
-        # second using ANSI cursor save/restore.  This way the user's input
-        # line is never touched, so typing "yes" works naturally without
-        # being overwritten each tick.
-        def _print_countdown_prompt(secs_left):
+        # Print a single static prompt -- no live ticking countdown, which
+        # interferes with the user's typing on terminals that don't fully
+        # honor ANSI cursor save/restore.  The box above already tells the
+        # user how many seconds they have.  Wait for the full remaining
+        # window, re-prompting only if they type a wrong answer.
+        def _prompt(secs_left):
             sys.stdout.write(
-                self._c(Colors.YELLOW + Colors.BOLD, "  [%2ds]" % int(secs_left + 0.5))
-                + " Time remaining\n"
+                self._c(Colors.YELLOW + Colors.BOLD, "  [%ds]" % int(secs_left + 0.5))
+                + " Type 'yes' to confirm (then press Enter): "
             )
-            sys.stdout.write("Type 'yes' to confirm: ")
             sys.stdout.flush()
 
-        _print_countdown_prompt(timeout)
+        _prompt(timeout)
 
         while True:
             remaining = deadline - time.time()
@@ -243,46 +242,30 @@ class Output:
                 break
 
             try:
-                ready, _, _ = select.select([sys.stdin], [], [], min(1.0, remaining))
+                ready, _, _ = select.select([sys.stdin], [], [], remaining)
             except (OSError, ValueError):
                 # stdin closed or not selectable
                 break
 
-            if ready:
-                try:
-                    answer = sys.stdin.readline().strip().lower()
-                except (EOFError, IOError):
-                    break
-                if answer == "yes":
-                    confirmed = True
-                    break
-                elif answer:
-                    # Wrong answer -- remind them and reprint the block so
-                    # the countdown keeps ticking on its dedicated line.
-                    sys.stdout.write(
-                        "  " + self._c(Colors.RED, "Please type exactly 'yes' to confirm.") + "\n"
-                    )
-                    _print_countdown_prompt(deadline - time.time())
-            else:
-                # Timer tick.  Redraw only the countdown line (above the
-                # prompt) by saving the cursor, moving up one line, clearing
-                # it, writing the new countdown, then restoring the cursor
-                # back to wherever the user was typing.
-                remaining = deadline - time.time()
-                if remaining <= 0:
-                    break
-                sys.stdout.write(
-                    "\033[s"                 # save cursor position
-                    + "\033[1A"              # move up one line
-                    + "\r\033[2K"            # col 0, clear entire line
-                    + self._c(Colors.YELLOW + Colors.BOLD,
-                              "  [%2ds]" % int(remaining + 0.5))
-                    + " Time remaining"
-                    + "\033[u"               # restore cursor position
-                )
-                sys.stdout.flush()
+            if not ready:
+                # Timeout expired with no input.
+                break
 
-        # Move past the prompt line so subsequent output starts on a fresh line.
+            try:
+                answer = sys.stdin.readline().strip().lower()
+            except (EOFError, IOError):
+                break
+
+            if answer == "yes":
+                confirmed = True
+                break
+            if answer:
+                # Wrong answer -- remind them and reprompt with updated time.
+                sys.stdout.write(
+                    "  " + self._c(Colors.RED, "Please type exactly 'yes' to confirm.") + "\n"
+                )
+                _prompt(deadline - time.time())
+
         sys.stdout.write("\n")
         sys.stdout.flush()
 
