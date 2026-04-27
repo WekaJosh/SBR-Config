@@ -88,6 +88,26 @@ SYSCTL_SETTINGS = {
             "when multiple interfaces are present."
         ),
     },
+    "net.ipv4.conf.all.arp_ignore": {
+        "required": "1",
+        "description": "ARP ignore (reply only on matching interface)",
+        "reason": (
+            "Value 1 tells the kernel to reply to an ARP request only if the target "
+            "IP is configured on the receiving interface. Required when multiple "
+            "NICs share a broadcast domain (common for WEKA frontends with several "
+            "NICs on the same subnet) to prevent ARP flux, where one NIC answers "
+            "for an IP that lives on another."
+        ),
+    },
+    "net.ipv4.conf.default.arp_ignore": {
+        "required": "1",
+        "description": "ARP ignore for new interfaces (reply only on matching interface)",
+        "reason": (
+            "Sets the default arp_ignore for newly created interfaces so that any "
+            "NIC brought up after sbr-config runs inherits the same anti-ARP-flux "
+            "behavior."
+        ),
+    },
 }
 
 # Per-interface sysctl template (rp_filter must be set per-iface too)
