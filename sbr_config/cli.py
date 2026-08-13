@@ -391,7 +391,8 @@ def _do_rollback(args: argparse.Namespace, out: Output) -> int:
         out.header("Rolling Back")
         rollback(backup_path=args.backup_file)
         out.nl()
-        out.info("Rollback complete. Previous SBR configuration has been removed.")
+        out.info("Rollback complete. The configuration that was running "
+                 "when the backup was taken has been restored.")
         out.info("Run 'sbr-config --validate' to verify the current state.")
 
         return 0

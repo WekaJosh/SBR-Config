@@ -48,7 +48,7 @@ for candidate in python3 python; do
     if command -v "$candidate" &>/dev/null; then
         major=$("$candidate" -c "import sys; print(sys.version_info.major)" 2>/dev/null) || continue
         minor=$("$candidate" -c "import sys; print(sys.version_info.minor)" 2>/dev/null) || continue
-        if [[ "$major" -ge "$MIN_PYTHON_MAJOR" ]] && [[ "$minor" -ge "$MIN_PYTHON_MINOR" ]]; then
+        if [[ "$major" -gt "$MIN_PYTHON_MAJOR" ]] || { [[ "$major" -eq "$MIN_PYTHON_MAJOR" ]] && [[ "$minor" -ge "$MIN_PYTHON_MINOR" ]]; }; then
             PYTHON="$candidate"
             break
         fi
