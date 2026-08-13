@@ -69,6 +69,11 @@ def write_file_atomic(path: str, content: str, mode: Optional[int] = None) -> No
     """
     tmp_path = path + ".sbr-config.tmp"
     try:
+        parent = os.path.dirname(path)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent, 0o755)
+            logger.info("Created directory %s", parent)
+
         # Determine permissions to use
         if mode is not None:
             file_mode = mode

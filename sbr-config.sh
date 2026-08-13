@@ -149,7 +149,7 @@ for arg in "$@"; do
                 check_warn "/etc/iproute2/rt_tables: not writable (need root)"
             fi
         else
-            check_fail "/etc/iproute2/rt_tables: not found"
+            check_warn "/etc/iproute2/rt_tables: not found (will be created during --configure)"
         fi
 
         # Multiple interfaces
